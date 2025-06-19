@@ -8,10 +8,13 @@ on:
 jobs:
   update-svg:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write           # 'write' access to repository contents
+      pull-requests: write      # 'write' access to pull requests
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -32,9 +35,15 @@ jobs:
         source venv/bin/activate
         python generate_svg.py
 
-    - name: Commit and push changes
-      uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        commit_message: "Auto-update SVG stats"
-        file_pattern: github_stats.svg
-        branch: main
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Commit and Push Changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      run: |
+        git add github_stats.svg
+        git commit -m "Update svg"
+        git push origin main
