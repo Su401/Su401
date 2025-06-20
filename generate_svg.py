@@ -1,79 +1,88 @@
 import os
-import requests
-from dotenv import load_dotenv
+from usr.fetch_data import fetch_github_data
+from usr.user_info import generate_other_info
 
-load_dotenv()
+ASCII_FILE = os.path.join("usr", "ascii.txt")
+OUTPUT_SVG = "github_stats.svg"
 
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
-GITHUB_USERNAME = os.getenv('GITHUB_USERNAME')
 
-if not GITHUB_TOKEN or not GITHUB_USERNAME:
-    raise ValueError("Missing GITHUB_TOKEN or GITHUB_USERNAME in environment variables")
+def escape_svg(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    )
 
-HEADERS = {
-    "Authorization": f"Bearer {GITHUB_TOKEN}"
-}
 
-# GitHub GraphQL query to get user info and stats
-QUERY = """
-query {
-  user(login: "%s") {
-    name
-    bio
-    repositories(privacy: PUBLIC) {
-      totalCount
-    }
-    followers {
-      totalCount
-    }
-    contributionsCollection {
-      contributionCalendar {
-        totalContributions
-      }
-    }
-  }
-}
-""" % GITHUB_USERNAME
+def pad_lines(lines, length):
+    while len(lines) < length:
+        lines.append("")
+    return lines
 
-def fetch_github_data():
-    url = "https://api.github.com/graphql"
-    response = requests.post(url, json={'query': QUERY}, headers=HEADERS)
 
-    if response.status_code == 401:
-        raise Exception("Authentication failed: 401 Bad Credentials. Check your token.")
-    elif response.status_code != 200:
-        raise Exception(f"Query failed with status code {response.status_code}")
+def combine_columns(left_lines, right_lines, gap=5):
+    max_lines = max(len(left_lines), len(right_lines))
+    left_lines = pad_lines(left_lines, max_lines)
+    right_lines = pad_lines(right_lines, max_lines)
+    left_width = max(len(line) for line in left_lines)
 
-    return response.json()
+    combined = [
+        f"{left_lines[i].ljust(left_width + gap)}{right_lines[i]}"
+        for i in range(max_lines)
+    ]
+    return combined
 
-def generate_svg(data):
-    user = data['data']['user']
-    name = user['name'] or GITHUB_USERNAME
-    bio = user.get('bio', '')
-    repos = user['repositories']['totalCount']
-    followers = user['followers']['totalCount']
-    contributions = user['contributionsCollection']['contributionCalendar']['totalContributions']
 
-    svg_content = f'''
-<svg width="400" height="180" xmlns="http://www.w3.org/2000/svg">
+def generate_svg_lines(lines: list) -> str:
+    svg_lines = []
+    y = 30
+    for line in lines:
+        svg_lines.append(f'<tspan x="20" y="{y}">{escape_svg(line)}</tspan>')
+        y += 20  # line height
+    return "\n    ".join(svg_lines)
+
+
+def generate_svg(ascii_lines, stats_lines):
+    combined_lines = combine_columns(ascii_lines, stats_lines)
+    svg_text = generate_svg_lines(combined_lines)
+    height = 20 * len(combined_lines) + 40
+
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="{height}">
   <style>
-    .title {{ font: bold 18px sans-serif; fill: #2c3e50; }}
-    .info {{ font: 14px monospace; fill: #34495e; }}
+    text {{
+      font-family: monospace;
+      font-size: 14px;
+      fill: #2c3e50;
+      white-space: pre;
+    }}
+    rect {{
+      fill: #fdf6e3;
+    }}
   </style>
-  <text x="10" y="30" class="title">GitHub Stats for {name}</text>
-  <text x="10" y="60" class="info">Bio: {bio}</text>
-  <text x="10" y="90" class="info">Public Repos: {repos}</text>
-  <text x="10" y="120" class="info">Followers: {followers}</text>
-  <text x="10" y="150" class="info">Contributions this year: {contributions}</text>
-</svg>
-'''
-    with open('github_stats.svg', 'w') as f:
-        f.write(svg_content)
+  <rect width="100%" height="100%" rx="15" ry="15"/>
+  <text>{svg_text}</text>
+</svg>'''
+
 
 def main():
-    data = fetch_github_data()
-    generate_svg(data)
-    print("SVG generated successfully.")
+    if not os.path.exists(ASCII_FILE):
+        print(f"⚠️ ASCII file '{ASCII_FILE}' not found.")
+        return
+
+    with open(ASCII_FILE, "r", encoding="utf-8") as f:
+        ascii_art = f.read().strip().splitlines()
+
+    github_stats, username = fetch_github_data()
+    stats_text = generate_other_info(username, github_stats)
+    stats_lines = stats_text.splitlines()
+
+    svg_content = generate_svg(ascii_art, stats_lines)
+
+    with open(OUTPUT_SVG, "w", encoding="utf-8") as f:
+        f.write(svg_content)
+
+    print(f"✅ SVG generated successfully → {OUTPUT_SVG}")
+
 
 if __name__ == "__main__":
     main()
