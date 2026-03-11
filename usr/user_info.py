@@ -27,7 +27,7 @@ def generate_other_info(username, github_stats: dict, birthday: str = "2000-10-0
         f"{username}@Github",
         "-------------------",
         "OS: A coffee fueled brain",
-        "Host: A very tired body",
+        "Host: Tired",
         "Kernel: Trauma",
         f"Uptime: {age}",
         "Shell: DAIKAN - Direct Assertive Individual Known for Abrasive Nature",
@@ -43,3 +43,4 @@ def generate_other_info(username, github_stats: dict, birthday: str = "2000-10-0
         lines.append(f"  {lang}: {perc}%")
     
     return "\n".join(lines)
+
